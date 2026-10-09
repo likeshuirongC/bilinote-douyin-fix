@@ -114,7 +114,9 @@ class DouyinDownloader(Downloader):
         super().__init__()
         self.headers_config = DouyinConfig.HEADERS.copy()
         self.headers_config["Cookie"] = cfm.get('douyin')
-        print(self.headers_config)
+        # 不打印完整 headers：里面含抖音登录 cookie，落到容器日志里等于泄露凭证
+        print("DouyinDownloader 初始化完成，Cookie 长度:",
+              len(self.headers_config.get("Cookie") or ""))
         self.proxies_config = DouyinConfig.PROXIES.copy()
         self.ttwid_config = DouyinConfig.TTWID.copy()
         self.ms_token_config = DouyinConfig.MS_TOKEN.copy()
