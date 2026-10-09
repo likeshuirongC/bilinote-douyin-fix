@@ -13,11 +13,14 @@ RUN rm -f /etc/apt/sources.list && \
     echo "deb https://${APT_MIRROR}/debian bookworm-updates main contrib non-free non-free-firmware" >> /etc/apt/sources.list && \
     echo "deb https://${APT_MIRROR}/debian-security bookworm-security main contrib non-free non-free-firmware" >> /etc/apt/sources.list && \
     apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg curl && \
+    apt-get install -y --no-install-recommends ffmpeg curl chromium && \
     rm -rf /var/lib/apt/lists/*
 
 ENV PATH="/usr/bin:${PATH}"
 ENV HF_ENDPOINT=https://hf-mirror.com
+# 抖音的 detail 接口已被 secsdk 风控，需用真实浏览器带签名抓取。
+# 容器内装 chromium，并显式指定路径（不写也会自动探测 /usr/bin/chromium）。
+ENV DOUYIN_BROWSER_PATH=/usr/bin/chromium
 
 WORKDIR /app
 

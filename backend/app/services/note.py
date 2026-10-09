@@ -232,6 +232,10 @@ class NoteGenerator:
             # 6. 完成
             self._update_status(task_id, TaskStatus.SUCCESS)
             logger.info(f"笔记生成成功 (task_id={task_id})")
+
+            # 7. 按设置清理本次任务落盘的视频/音频（默认关闭）
+            self._maybe_cleanup_media(video_url=video_url, platform=platform, audio_meta=audio_meta)
+
             return NoteResult(markdown=markdown, transcript=transcript, audio_meta=audio_meta)
 
         except Exception as exc:
@@ -250,6 +254,73 @@ class NoteGenerator:
         """
         logger.info(f"删除笔记记录 (video_id={video_id}, platform={platform})")
         return delete_task_by_video(video_id, platform)
+
+    # ---------------- 生成后清理 ----------------
+
+    def _collect_media_files(
+        self,
+        video_url: Union[str, HttpUrl],
+        platform: str,
+        audio_meta: Optional[AudioDownloadResult],
+    ) -> List[str]:
+        """汇总本次任务真正落盘的视频/音频文件（去重且只保留存在的文件）。"""
+        candidates: List[str] = []
+
+        def _add(p):
+            if p and isinstance(p, str):
+                candidates.append(p)
+
+        if audio_meta is not None:
+            _add(getattr(audio_meta, "file_path", None))
+            _add(getattr(audio_meta, "video_path", None))
+        if self.video_path:
+            _add(str(self.video_path))
+        # local 平台：源文件是上传到 /uploads 的原始视频（与 LocalDownloader 的解析方式保持一致）
+        if platform == "local":
+            raw = str(video_url)
+            if raw.startswith("/uploads"):
+                _add(os.path.join(os.getcwd(), raw.lstrip("/").replace("/", os.sep)))
+
+        seen, result = set(), []
+        for path in candidates:
+            try:
+                full = os.path.abspath(path)
+            except Exception:
+                continue
+            if full not in seen and os.path.isfile(full):
+                seen.add(full)
+                result.append(full)
+        return result
+
+    def _maybe_cleanup_media(
+        self,
+        video_url: Union[str, HttpUrl],
+        platform: str,
+        audio_meta: Optional[AudioDownloadResult],
+    ) -> None:
+        """开启「笔记生成后自动删除视频」时，删除本次任务的视频/音频文件。
+
+        只删媒体本体：markdown、转写缓存、封面图都保留，重试任务仍能命中转写缓存。
+        任何异常都只记日志，绝不影响已经成功的任务状态。
+        """
+        try:
+            from app.services.app_settings_manager import AppSettingsManager
+
+            if not AppSettingsManager().get("auto_delete_media", False):
+                return
+
+            files = self._collect_media_files(video_url=video_url, platform=platform, audio_meta=audio_meta)
+            if not files:
+                logger.info("自动清理：本次任务没有需要删除的媒体文件")
+                return
+            for path in files:
+                try:
+                    os.remove(path)
+                    logger.info(f"自动清理：已删除媒体文件 {path}")
+                except Exception as exc:
+                    logger.warning(f"自动清理：删除失败 {path} - {exc}")
+        except Exception as exc:
+            logger.warning(f"自动清理媒体文件异常：{exc}")
 
     # ---------------- 私有方法 ----------------
 

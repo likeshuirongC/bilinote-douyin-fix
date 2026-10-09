@@ -51,3 +51,16 @@ export const getDeployStatus = async (): Promise<DeployStatus> => {
   return await request.get('/deploy_status')
 }
 
+export interface AppSettings {
+  /** 笔记生成成功后，自动删除本次任务用到的视频/音频文件 */
+  auto_delete_media: boolean
+}
+
+export const getAppSettings = async (): Promise<AppSettings> => {
+  return await request.get('/app_settings')
+}
+
+export const updateAppSettings = async (data: Partial<AppSettings>): Promise<AppSettings> => {
+  return await request.post('/app_settings', data)
+}
+

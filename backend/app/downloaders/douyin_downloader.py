@@ -200,11 +200,32 @@ class DouyinDownloader(Downloader):
 
             response = requests.get(full_url, headers=kwargs)
 
-            print("Response JSON:", response.content)
-            return response.json()
+            print("Response JSON:", response.content[:200])
+            data = response.json()
+            if not data.get("aweme_detail"):
+                raise ValueError("接口返回内容缺少 aweme_detail 字段")
+            return data
         except Exception as e:
-            print("请求失败:", e)
-            raise ValueError("请求失败:", e)
+            print("抖音接口方式失败:", e)
+            return self._fetch_video_info_via_browser(video_url)
+
+    def _fetch_video_info_via_browser(self, video_url: str) -> json:
+        """兜底方案：让真实浏览器带着 secsdk 签名访问视频页，抓取 detail 接口响应。
+
+        抖音已对该接口加装 secsdk 风控（需要 x-secsdk-web-signature 三件套），
+        纯 a_bogus 签名会返回 403 纯文本，导致 response.json() 抛 JSONDecodeError。
+        这里改用浏览器抓取：页面自身 JS 会发出合法签名的请求，我们监听并取回 JSON。
+        """
+        from app.downloaders.douyin_browser import fetch_detail_via_browser
+
+        print("改用浏览器方式抓取抖音视频信息…")
+        try:
+            data = fetch_detail_via_browser(video_url)
+            print("浏览器抓取成功")
+            return data
+        except Exception as be:
+            print("浏览器抓取也失败:", be)
+            raise ValueError("请求失败:", be)
         # print(kwargs)
 
     def download(

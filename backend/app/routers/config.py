@@ -9,6 +9,7 @@ from app.utils.response import ResponseWrapper as R
 from app.utils.logger import get_logger
 from app.utils.path_helper import get_model_dir
 
+from app.services.app_settings_manager import AppSettingsManager
 from app.services.cookie_manager import CookieConfigManager
 from app.services.transcriber_config_manager import TranscriberConfigManager
 from app.transcriber import model_download_state as dl_state
@@ -19,6 +20,7 @@ logger = get_logger(__name__)
 router = APIRouter()
 cookie_manager = CookieConfigManager()
 transcriber_config_manager = TranscriberConfigManager()
+app_settings_manager = AppSettingsManager()
 
 
 class CookieUpdateRequest(BaseModel):
@@ -42,6 +44,26 @@ def update_cookie(data: CookieUpdateRequest):
     return R.success(
 
     )
+
+
+# ---------------- 通用应用设置 ----------------
+
+class AppSettingsRequest(BaseModel):
+    auto_delete_media: Optional[bool] = None
+
+
+@router.get("/app_settings")
+def get_app_settings():
+    """读取通用应用设置（缺省项自动补默认值）。"""
+    return R.success(data=app_settings_manager.get_settings())
+
+
+@router.post("/app_settings")
+def update_app_settings(data: AppSettingsRequest):
+    """更新通用应用设置，只更新本次传入的字段。"""
+    updated = app_settings_manager.update_settings(auto_delete_media=data.auto_delete_media)
+    return R.success(data=updated)
+
 
 class TranscriberConfigRequest(BaseModel):
     transcriber_type: str
