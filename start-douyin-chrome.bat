@@ -1,36 +1,22 @@
 @echo off
-chcp 65001 >nul
-title BiliNote - æŠ–éŸ³æŠ“å–ä¸“ç”¨ Chrome
+title BiliNote - ¶¶Òô×¥È¡×¨ÓÃ Chrome
+
+curl -s --max-time 2 http://127.0.0.1:9222/json/version >nul 2>&1
+if not errorlevel 1 (
+  echo [Ìø¹ý] ¶¶Òô×¥È¡×¨ÓÃä¯ÀÀÆ÷ÒÑÔÚÔËÐÐ¡£
+  exit /b 0
+)
 
 set "CHROME=%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"
 if not exist "%CHROME%" set "CHROME=C:\Program Files\Google\Chrome\Application\chrome.exe"
 if not exist "%CHROME%" set "CHROME=C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
 if not exist "%CHROME%" set "CHROME=C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 if not exist "%CHROME%" (
-  echo [é”™è¯¯] æ²¡æ‰¾åˆ° Chrome/Edgeï¼Œè¯·ç”¨è®°äº‹æœ¬æ‰“å¼€æœ¬è„šæœ¬ï¼ŒæŠŠ CHROME æ”¹æˆä½ çš„æµè§ˆå™¨è·¯å¾„ã€‚
-  pause
+  echo [´íÎó] Ã»ÕÒµ½ Chrome/Edge£¬ÇëÓÃ¼ÇÊÂ±¾´ò¿ª±¾ÎÄ¼þ£¬°Ñ CHROME ¸Ä³ÉÄãµÄä¯ÀÀÆ÷Â·¾¶¡£
   exit /b 1
 )
 
-echo æ­£åœ¨å¯åŠ¨æŠ–éŸ³æŠ“å–ä¸“ç”¨æµè§ˆå™¨ï¼ˆæ— çª—å£ï¼Œè°ƒè¯•ç«¯å£ 9222ï¼‰...
-echo æµè§ˆå™¨è·¯å¾„: %CHROME%
-echo.
-echo è¯´æ˜Žï¼š
-echo   - è¿™ä¸ªçª—å£å¯ä»¥æœ€å°åŒ–ï¼Œå…³æŽ‰å®ƒä¸å½±å“å·²å¯åŠ¨çš„æµè§ˆå™¨ã€‚
-echo   - æµè§ˆå™¨ä¼šå¸¸é©»åŽå°ï¼ŒBiliNote æŠ“æŠ–éŸ³æ—¶è‡ªåŠ¨è¿žå®ƒã€‚
-echo   - æƒ³å½»åº•åœæ­¢ï¼šä»»åŠ¡ç®¡ç†å™¨é‡Œç»“æŸå¸¦ remote-debugging-port=9222 çš„ chrome è¿›ç¨‹ã€‚
-
-start "" "%CHROME%" ^
-  --remote-debugging-port=9222 ^
-  --remote-debugging-address=0.0.0.0 ^
-  --user-data-dir="%LOCALAPPDATA%\BiliNoteDouyinChrome" ^
-  --headless=new ^
-  --no-first-run ^
-  --no-default-browser-check ^
-  --disable-gpu ^
-  --mute-audio ^
-  --lang=zh-CN ^
-  about:blank
-
-echo å·²å¯åŠ¨ã€‚
-timeout /t 3 >nul
+echo ÕýÔÚÆô¶¯¶¶Òô×¥È¡×¨ÓÃä¯ÀÀÆ÷£¨ºóÌ¨ÎÞ´°¿Ú£¬µ÷ÊÔ¶Ë¿Ú 9222£©...
+start "" /b "%CHROME%" --remote-debugging-port=9222 --remote-debugging-address=0.0.0.0 --user-data-dir="%LOCALAPPDATA%\BiliNoteDouyinChrome" --headless=new --no-first-run --no-default-browser-check --disable-gpu --mute-audio --lang=zh-CN about:blank >nul 2>&1
+echo ÒÑÆô¶¯¡£
+exit /b 0

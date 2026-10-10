@@ -180,43 +180,46 @@ class DouyinDownloader(Downloader):
             raise ValueError("Douyin msToken API{0}".format(e))
 
     def fetch_video_info(self, video_url: str) -> json:
-        try:
+        """获取抖音视频详情（当前主路径：真实浏览器抓取）。
 
-            aweme_id = self.extract_video_id(video_url)
-            kwargs = self.headers_config
-            print("@kwargs:", kwargs)
-            base_params = BaseRequestModel().model_dump()
-            base_params["msToken"] = self.gen_real_msToken()
+        抖音已给 aweme/v1/web/aweme/detail/ 加装 secsdk 风控：除了 a_bogus，
+        还必须带 timestamp + x-secsdk-web-signature 三件套，否则一律返回
+        403 Blocked by ArgusSecurityPlugin。旧方案只做 a_bogus，已无法使用。
 
-            base_params["aweme_id"] = aweme_id
-            bogus = ABogus()
-            ab_value = bogus.get_value(base_params)
-            a_bogus = quote(ab_value, safe='')
-            print("@a_bogus:", a_bogus)
-            print(base_params)
-            query_str = urlencode(base_params)
-            full_url = f"{DOUYIN_DOMAIN}/aweme/v1/web/aweme/detail/?{query_str}&a_bogus={a_bogus}"
+        因此这里默认直接走"浏览器抓取"：让页面自身带着合法签名去请求接口，
+        我们再从网络层取回 JSON。旧的纯 HTTP 方案保留在 _legacy_api_fetch，
+        只有显式设置 DOUYIN_LEGACY_API=1 时才会走它（应急/排查用）。
+        """
+        if os.getenv("DOUYIN_LEGACY_API") == "1":
+            try:
+                return self._legacy_api_fetch(video_url)
+            except Exception as e:
+                print("旧接口方式失败，回退浏览器抓取:", e)
+        return self._fetch_video_info_via_browser(video_url)
 
-            print("Request URL:", full_url)
-
-
-            response = requests.get(full_url, headers=kwargs)
-
-            print("Response JSON:", response.content[:200])
-            data = response.json()
-            if not data.get("aweme_detail"):
-                raise ValueError("接口返回内容缺少 aweme_detail 字段")
-            return data
-        except Exception as e:
-            print("抖音接口方式失败:", e)
-            return self._fetch_video_info_via_browser(video_url)
+    def _legacy_api_fetch(self, video_url: str) -> json:
+        """[已失效，仅应急] 原始 a_bogus 直连接口方案，抖音 secsdk 风控后必然 403。"""
+        aweme_id = self.extract_video_id(video_url)
+        kwargs = self.headers_config
+        base_params = BaseRequestModel().model_dump()
+        base_params["msToken"] = self.gen_real_msToken()
+        base_params["aweme_id"] = aweme_id
+        ab_value = ABogus().get_value(base_params)
+        a_bogus = quote(ab_value, safe='')
+        query_str = urlencode(base_params)
+        full_url = f"{DOUYIN_DOMAIN}/aweme/v1/web/aweme/detail/?{query_str}&a_bogus={a_bogus}"
+        response = requests.get(full_url, headers=kwargs)
+        print("旧接口 HTTP", response.status_code, "响应前 120 字:", response.content[:120])
+        data = response.json()
+        if not data.get("aweme_detail"):
+            raise ValueError("接口返回内容缺少 aweme_detail 字段")
+        return data
 
     def _fetch_video_info_via_browser(self, video_url: str) -> json:
-        """兜底方案：让真实浏览器带着 secsdk 签名访问视频页，抓取 detail 接口响应。
+        """抖音详情抓取主路径：让真实浏览器带着 secsdk 签名访问视频页。
 
-        抖音已对该接口加装 secsdk 风控（需要 x-secsdk-web-signature 三件套），
-        纯 a_bogus 签名会返回 403 纯文本，导致 response.json() 抛 JSONDecodeError。
-        这里改用浏览器抓取：页面自身 JS 会发出合法签名的请求，我们监听并取回 JSON。
+        页面自身 JS 会发出合法签名的 aweme/detail 请求，我们通过 CDP 监听并取回 JSON，
+        结构与原接口一致，可直接替换 fetch_video_info 的返回值。
         """
         from app.downloaders.douyin_browser import fetch_detail_via_browser
 
