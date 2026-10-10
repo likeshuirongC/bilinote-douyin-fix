@@ -53,6 +53,39 @@ function extractUrl(text?: string): string {
   return m ? m[0].replace(/[，。、！？；：）】》"'”’]+$/, '') : s
 }
 
+/* -------------------- 记住上次的选择 -------------------- */
+/* 把平台/模型/风格/画质等存到 localStorage，避免每次打开或做完一个笔记都要重选 */
+const LAST_CHOICE_KEY = 'bilinote:last-choice'
+
+interface LastChoice {
+  platform?: string
+  quality?: string
+  model_name?: string
+  style?: string
+  format?: string[]
+  grid_size?: number[]
+  screenshot?: boolean
+  link?: boolean
+}
+
+function loadLastChoice(): LastChoice {
+  try {
+    return JSON.parse(localStorage.getItem(LAST_CHOICE_KEY) || '{}') || {}
+  }
+  catch {
+    return {}
+  }
+}
+
+function saveLastChoice(choice: LastChoice) {
+  try {
+    localStorage.setItem(LAST_CHOICE_KEY, JSON.stringify(choice))
+  }
+  catch {
+    /* 隐私模式等写不了就跳过 */
+  }
+}
+
 /* -------------------- 校验 Schema -------------------- */
 const formSchema = z
   .object({
@@ -151,16 +184,20 @@ const NoteForm = () => {
   const { loadEnabledModels, modelList, showFeatureHint, setShowFeatureHint } = useModelStore()
 
   /* ---- 表单 ---- */
+  // 优先用上次的选择；没有记录时才用默认值
+  const lastChoice = loadLastChoice()
   const form = useForm<NoteFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      platform: 'bilibili',
-      quality: 'medium',
-      model_name: modelList[0]?.model_name || '',
-      style: 'minimal',
+      platform: (lastChoice.platform || 'bilibili') as any,
+      quality: (lastChoice.quality || 'medium') as any,
+      model_name: lastChoice.model_name || modelList[0]?.model_name || '',
+      style: lastChoice.style || 'minimal',
       video_interval: 6,
-      grid_size: [2, 2],
-      format: [],
+      grid_size: (lastChoice.grid_size || [2, 2]) as any,
+      format: lastChoice.format || [],
+      screenshot: lastChoice.screenshot ?? false,
+      link: lastChoice.link ?? false,
     },
   })
   const currentTask = getCurrentTask()
@@ -179,6 +216,14 @@ const NoteForm = () => {
 
     return
   }, [])
+  // 模型列表加载完（或记住的模型已被删除）后，回落到第一个可用模型
+  useEffect(() => {
+    if (!modelList.length)
+      return
+    const cur = form.getValues('model_name')
+    if (!cur || !modelList.some(m => m.model_name === cur))
+      form.setValue('model_name', modelList[0].model_name)
+  }, [modelList.length])
   useEffect(() => {
     if (!currentTask) return
     const { formData } = currentTask
@@ -231,12 +276,23 @@ const NoteForm = () => {
   }
 
   const onSubmit = async (values: NoteFormValues) => {
-    console.log('Not even go here')
+    // 记住这次的选择：下次打开、或做完一个笔记后回来，都自动回填
+    saveLastChoice({
+      platform: values.platform,
+      quality: values.quality,
+      model_name: values.model_name,
+      style: values.style,
+      format: values.format,
+      grid_size: values.grid_size,
+      screenshot: values.screenshot,
+      link: values.link,
+    })
+    const matched = modelList.find(m => m.model_name === values.model_name)
     const payload: NoteFormValues = {
       ...values,
       // 分享文本里夹带的链接先抽出来，存任务记录/日志都用干净链接
       video_url: values.platform === 'local' ? values.video_url : extractUrl(values.video_url),
-      provider_id: modelList.find(m => m.model_name === values.model_name)!.provider_id,
+      provider_id: matched?.provider_id || '',
       task_id: currentTaskId || '',
     }
     if (currentTaskId) {
