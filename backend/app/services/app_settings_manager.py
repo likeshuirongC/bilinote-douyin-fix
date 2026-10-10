@@ -14,6 +14,9 @@ class AppSettingsManager:
         # 笔记生成成功后，自动删除本次任务用到的视频/音频文件以节省磁盘。
         # 笔记本身（markdown / 转写 / 封面）不受影响。
         "auto_delete_media": False,
+        # 可选：视频/音频的下载保存目录（容器内绝对路径）。
+        # 留空表示用默认的 data 目录；填了就优先用它。
+        "download_dir": "",
     }
 
     def __init__(self, filepath: str = "config/app_settings.json"):

@@ -50,6 +50,8 @@ def update_cookie(data: CookieUpdateRequest):
 
 class AppSettingsRequest(BaseModel):
     auto_delete_media: Optional[bool] = None
+    # 可选：自定义下载保存目录（容器内绝对路径）；传空字符串表示恢复默认
+    download_dir: Optional[str] = None
 
 
 @router.get("/app_settings")
@@ -61,7 +63,17 @@ def get_app_settings():
 @router.post("/app_settings")
 def update_app_settings(data: AppSettingsRequest):
     """更新通用应用设置，只更新本次传入的字段。"""
-    updated = app_settings_manager.update_settings(auto_delete_media=data.auto_delete_media)
+    updated = app_settings_manager.update_settings(
+        auto_delete_media=data.auto_delete_media,
+        download_dir=data.download_dir,
+    )
+    # 下载目录变了要立刻让 get_data_dir() 的缓存失效，否则几秒内仍走旧目录
+    if data.download_dir is not None:
+        try:
+            from app.utils.path_helper import invalidate_download_dir_cache
+            invalidate_download_dir_cache()
+        except Exception:
+            pass
     return R.success(data=updated)
 
 

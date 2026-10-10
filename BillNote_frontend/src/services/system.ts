@@ -54,6 +54,8 @@ export const getDeployStatus = async (): Promise<DeployStatus> => {
 export interface AppSettings {
   /** 笔记生成成功后，自动删除本次任务用到的视频/音频文件 */
   auto_delete_media: boolean
+  /** 可选：视频/音频的下载保存目录（容器内绝对路径）；空字符串表示用默认目录 */
+  download_dir: string
 }
 
 export const getAppSettings = async (): Promise<AppSettings> => {
