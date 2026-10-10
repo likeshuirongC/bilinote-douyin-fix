@@ -126,11 +126,24 @@ def open_app_window():
     log("open_app_window: browser=%s" % browser)
     if not browser:
         os.startfile(APP_URL)
+        log("无浏览器，已用 shell 打开 URL")
         return
-    subprocess.Popen([browser, "--app=" + APP_URL], stdin=subprocess.DEVNULL,
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                     creationflags=CREATE_NO_WINDOW)
-    log("已发出打开窗口命令")
+    # 用 Win32 ShellExecuteW：等价于在资源管理器里双击，不依赖控制台。
+    # （cmd /c start 在 --noconsole 冻结进程里会被丢参数；
+    #  也不要再用 wmic 去校验窗口是否打开 —— Chrome 会复用已有实例，
+    #  新调用不产生新进程，命令行里根本查不到，会误判成失败。）
+    try:
+        import ctypes
+        rc = ctypes.windll.shell32.ShellExecuteW(None, "open", browser,
+                                                 "--app=" + APP_URL, None, 1)
+        log("ShellExecuteW --app -> rc=%s (>32 即成功)" % rc)
+        if rc > 32:
+            time.sleep(2)
+            return
+    except Exception as exc:
+        log("ShellExecuteW 异常: %s" % exc)
+    log("改用默认浏览器打开")
+    os.startfile(APP_URL)
 
 
 class Launcher:
@@ -207,9 +220,11 @@ class Launcher:
                 self.set_status("等待服务就绪… %ds" % waited, 0.7 + min(waited / 90, 1) * 0.28)
             log("health_ok=%s (等了 %ds)" % (health_ok(), waited))
 
-            self.set_status("正在打开界面…", 1.0)
+            self.set_status("正在打开 BiliNote 界面…", 1.0)
             open_app_window()
-            time.sleep(1.5)
+            # 停留几秒，让用户能看清提示（否则服务已就绪时窗口一闪而过，像"没反应"）
+            self.set_status("已在浏览器中打开 BiliNote\n如果没看到，请检查任务栏里的浏览器窗口", 1.0)
+            time.sleep(4)
             log("=== 启动流程结束")
         except Exception:
             log("work() 异常:\n" + traceback.format_exc())
