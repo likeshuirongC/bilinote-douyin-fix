@@ -327,3 +327,6 @@ cython_debug/
 # FFmpeg 构建文件（不应该提交到仓库）
 ffmpeg*/
 ffmpg*/
+# 启动器打包产物（PyInstaller）
+BiliNoteApp/
+bilinote_launcher.spec
