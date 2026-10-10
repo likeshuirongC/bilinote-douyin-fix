@@ -7,7 +7,7 @@ from typing import Optional
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File
-from pydantic import BaseModel, validator, field_validator
+from pydantic import BaseModel, validator, field_validator, model_validator
 from dataclasses import asdict
 
 from app.db.video_task_dao import get_task_by_video
@@ -17,6 +17,7 @@ from app.exceptions.note import NoteError
 from app.services.note import NoteGenerator, logger
 from app.services.task_serial_executor import task_serial_executor
 from app.utils.response import ResponseWrapper as R
+from app.utils.url_extract import extract_first_url
 from app.utils.url_parser import extract_video_id
 from app.validators.video_url_validator import is_supported_video_url
 from fastapi import APIRouter, Request, HTTPException
@@ -54,6 +55,18 @@ class VideoRequest(BaseModel):
     # 跳过 download_subtitles 和音频转写。形如：
     #   {"language": "zh", "full_text": "...", "segments": [{"start","end","text"}, ...]}
     prefetched_transcript: Optional[dict] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_url(cls, data):
+        """从分享文本里抽出真正的链接。
+
+        用户从手机端复制过来的通常是一整段分享文案（口令 + 标题 + 话题 + 链接），
+        这里统一提取第一个 http(s) 链接，让"粘贴整段文字"也能直接用。
+        """
+        if isinstance(data, dict) and data.get("video_url"):
+            data["video_url"] = extract_first_url(str(data["video_url"]))
+        return data
 
     @field_validator("video_url")
     def validate_supported_url(cls, v):

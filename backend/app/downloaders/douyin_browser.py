@@ -297,17 +297,32 @@ def _fetch_via_local(video_url: str, timeout: float) -> dict:
         shutil.rmtree(profile, ignore_errors=True)
 
 
-def fetch_detail_via_browser(video_url: str, timeout: float = 60.0) -> dict:
+def fetch_detail_via_browser(video_url: str, timeout: float = 60.0, retries: int = 2) -> dict:
     """用真实浏览器打开抖音视频页，抓取 detail 接口的 JSON 响应。
 
+    抖音页面偶尔不会触发 detail 请求（加载抖动 / 风控早退，实测同一链接
+    有时 5 秒就成、有时整轮拿不到），所以默认失败后重开标签页再试几次。
+
     :param video_url: 抖音分享短链或视频页链接
-    :param timeout: 等待接口响应的最长时间（秒）
+    :param timeout: 单次等待接口响应的最长时间（秒）
+    :param retries: 失败后的重试次数
     :return: 与原 aweme/detail 接口结构一致的 dict
-    :raises RuntimeError: 无可用浏览器 / 启动失败 / 超时未拿到数据
+    :raises RuntimeError: 无可用浏览器 / 启动失败 / 重试后仍未拿到数据
     """
     remote = (os.getenv("DOUYIN_CDP_URL") or "").strip()
-    if remote:
-        base = _normalize_cdp_base(remote.rstrip("/"))
+    base = _normalize_cdp_base(remote.rstrip("/")) if remote else None
+    if base:
         logger.info("使用宿主机浏览器抓取抖音：%s -> %s", remote, base)
-        return _fetch_via_remote(base, video_url, timeout)
-    return _fetch_via_local(video_url, timeout)
+
+    last_err = None
+    for attempt in range(retries + 1):
+        try:
+            if base:
+                return _fetch_via_remote(base, video_url, timeout)
+            return _fetch_via_local(video_url, timeout)
+        except Exception as exc:
+            last_err = exc
+            if attempt < retries:
+                logger.warning("抖音抓取第 %d 次失败（%s），2 秒后重试", attempt + 1, exc)
+                time.sleep(2.0)
+    raise last_err

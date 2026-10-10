@@ -41,6 +41,18 @@ import { fetchModels } from '@/services/model.ts'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 
+/* 从用户粘贴的内容里提取链接：
+   手机端抖音/快手/B站分享出来的是一整段文案（口令 + 标题 + 话题 + 链接），
+   这里先抽出真正的链接，避免"粘贴整段分享文字"被误判成非法链接 */
+const URL_PATTERN = /https?:\/\/[A-Za-z0-9\-._~:/?#[\]@!$&'()*+,;=%]+/
+function extractUrl(text?: string): string {
+  const s = (text || '').trim()
+  if (!s)
+    return s
+  const m = s.match(URL_PATTERN)
+  return m ? m[0].replace(/[，。、！？；：）】》"'”’]+$/, '') : s
+}
+
 /* -------------------- 校验 Schema -------------------- */
 const formSchema = z
   .object({
@@ -67,12 +79,13 @@ const formSchema = z
       }
     }
     else {
-      if (!video_url) {
+      const link = extractUrl(video_url)
+      if (!link) {
         ctx.addIssue({ code: 'custom', message: '视频链接不能为空', path: ['video_url'] })
       }
       else {
         try {
-          const url = new URL(video_url)
+          const url = new URL(link)
           if (!['http:', 'https:'].includes(url.protocol))
             throw new Error()
         }
@@ -221,6 +234,8 @@ const NoteForm = () => {
     console.log('Not even go here')
     const payload: NoteFormValues = {
       ...values,
+      // 分享文本里夹带的链接先抽出来，存任务记录/日志都用干净链接
+      video_url: values.platform === 'local' ? values.video_url : extractUrl(values.video_url),
       provider_id: modelList.find(m => m.model_name === values.model_name)!.provider_id,
       task_id: currentTaskId || '',
     }
