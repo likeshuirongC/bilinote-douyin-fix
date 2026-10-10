@@ -230,9 +230,13 @@ const NoteForm = () => {
 
     console.log('currentTask.formData.platform:', formData.platform)
 
+    // 已生成成功的任务只回填"选择项"，不回填视频链接 —— 链接每次重新粘贴，
+    // 免得下次打开还挂着上一条，得手动清。
+    // 未完成/失败的仍带上链接，方便直接重试。
+    const succeeded = String(currentTask.status || '').toUpperCase() === 'SUCCESS'
     form.reset({
       platform: formData.platform || 'bilibili',
-      video_url: formData.video_url || '',
+      video_url: succeeded ? '' : (formData.video_url || ''),
       model_name: formData.model_name || modelList[0]?.model_name || '',
       style: formData.style || 'minimal',
       quality: formData.quality || 'medium',
