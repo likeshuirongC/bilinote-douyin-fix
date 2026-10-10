@@ -128,20 +128,29 @@ def open_app_window():
         os.startfile(APP_URL)
         log("无浏览器，已用 shell 打开 URL")
         return
-    # 用 Win32 ShellExecuteW：等价于在资源管理器里双击，不依赖控制台。
-    # （cmd /c start 在 --noconsole 冻结进程里会被丢参数；
-    #  也不要再用 wmic 去校验窗口是否打开 —— Chrome 会复用已有实例，
-    #  新调用不产生新进程，命令行里根本查不到，会误判成失败。）
+    # 关键：必须用【独立 user-data-dir】启动。
+    # Chrome 的单例是按其 profile 判定的：如果复用抓取专用的那个实例
+    # （headless、没有可见窗口），--app 请求就被丢进去，窗口根本不出现 ——
+    # 而 ShellExecuteW 仍然返回成功，极具迷惑性。
+    # DETACHED_PROCESS 让浏览器彻底脱离本进程，避免 --noconsole 冻结环境的句柄问题。
+    profile = os.path.join(os.environ.get("LOCALAPPDATA") or tempfile.gettempdir(),
+                           "BiliNoteAppChrome")
     try:
-        import ctypes
-        rc = ctypes.windll.shell32.ShellExecuteW(None, "open", browser,
-                                                 "--app=" + APP_URL, None, 1)
-        log("ShellExecuteW --app -> rc=%s (>32 即成功)" % rc)
-        if rc > 32:
-            time.sleep(2)
-            return
+        proc = subprocess.Popen(
+            [browser,
+             "--user-data-dir=" + profile,
+             "--no-first-run",
+             "--no-default-browser-check",
+             "--app=" + APP_URL,
+             "--window-size=1280,900"],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            creationflags=subprocess.DETACHED_PROCESS,
+        )
+        log("已用独立 profile 启动窗口 pid=%s" % proc.pid)
+        time.sleep(3)
+        return
     except Exception as exc:
-        log("ShellExecuteW 异常: %s" % exc)
+        log("独立 profile 启动失败: %s" % exc)
     log("改用默认浏览器打开")
     os.startfile(APP_URL)
 
