@@ -54,6 +54,61 @@ class AppSettingsRequest(BaseModel):
     download_dir: Optional[str] = None
 
 
+# ---------------- 目录浏览（设置里"选择文件夹"用） ----------------
+# 浏览器出于安全拿不到用户本机路径，所以只能让用户在后端可见的目录树里点选。
+_BROWSE_ROOTS = ["/app"]
+
+
+def _safe_browse_dir(raw: str):
+    """把传入路径规范化，并确保落在可浏览根目录内（防路径穿越）。"""
+    base_abs = os.path.abspath(_BROWSE_ROOTS[0])
+    text = str(raw or "").strip()
+    if not text:
+        return base_abs
+    target = os.path.abspath(os.path.normpath(text))
+    if target != base_abs and not target.startswith(base_abs + os.sep):
+        return None
+    return target
+
+
+@router.get("/fs/list_dirs")
+def list_dirs(path: str = ""):
+    """列出目录下的子目录，供前端"选择文件夹"弹窗使用。"""
+    target = _safe_browse_dir(path)
+    if not target:
+        raise HTTPException(status_code=400, detail="只能浏览 /app 下的目录")
+    if not os.path.isdir(target):
+        target = os.path.abspath(_BROWSE_ROOTS[0])
+
+    dirs = []
+    try:
+        for name in sorted(os.listdir(target), key=str.lower):
+            if name.startswith("."):
+                continue
+            full = os.path.join(target, name)
+            if os.path.isdir(full):
+                dirs.append({"name": name, "path": full})
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="没有权限读取该目录")
+    except OSError as exc:
+        raise HTTPException(status_code=400, detail="读取失败：%s" % exc)
+
+    base_abs = os.path.abspath(_BROWSE_ROOTS[0])
+    parent = os.path.dirname(target) if target != base_abs else None
+
+    quick = [p for p in ("/app", "/app/downloads", "/app/data") if os.path.isdir(p)]
+
+    return R.success(data={
+        "path": target,
+        "parent": parent,
+        "dirs": dirs,
+        "writable": os.access(target, os.W_OK),
+        "quick": quick,
+    })
+
+    # 兼容：把默认下载目录也列出来，方便一键选中
+
+
 @router.get("/app_settings")
 def get_app_settings():
     """读取通用应用设置（缺省项自动补默认值）。"""

@@ -4,6 +4,7 @@ import { Switch } from '@/components/ui/switch.tsx'
 import { Input } from '@/components/ui/input.tsx'
 import { Button } from '@/components/ui/button.tsx'
 import { getAppSettings, updateAppSettings } from '@/services/system.ts'
+import DirPickerDialog from './DirPickerDialog.tsx'
 
 /**
  * 下载相关的存储选项：
@@ -20,6 +21,7 @@ const StorageOptions = () => {
   const [downloadDir, setDownloadDir] = useState('')
   const [savedDir, setSavedDir] = useState('')   // 已保存的值，用来判断有没有未保存改动
   const [savingDir, setSavingDir] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   useEffect(() => {
     getAppSettings()
@@ -93,6 +95,14 @@ const StorageOptions = () => {
           />
           <Button
             size="sm"
+            variant="outline"
+            onClick={() => setPickerOpen(true)}
+            disabled={loading || savingDir}
+          >
+            浏览…
+          </Button>
+          <Button
+            size="sm"
             onClick={handleSaveDir}
             disabled={loading || savingDir || !dirty}
           >
@@ -113,6 +123,13 @@ const StorageOptions = () => {
           <Switch checked={autoDelete} onCheckedChange={handleChange} disabled={loading} />
         </div>
       </div>
+
+      <DirPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        initial={downloadDir || savedDir}
+        onPick={dir => setDownloadDir(dir)}
+      />
     </div>
   )
 }

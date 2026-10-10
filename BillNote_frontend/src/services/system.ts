@@ -66,3 +66,29 @@ export const updateAppSettings = async (data: Partial<AppSettings>): Promise<App
   return await request.post('/app_settings', data)
 }
 
+export interface DirEntry {
+  name: string
+  path: string
+}
+
+export interface DirListing {
+  /** 当前所在目录 */
+  path: string
+  /** 上级目录；已经是根目录时为 null */
+  parent: string | null
+  /** 子目录列表 */
+  dirs: DirEntry[]
+  /** 当前目录是否可写 */
+  writable: boolean
+  /** 快捷跳转入口 */
+  quick: string[]
+}
+
+/**
+ * 列出目录下的子目录。
+ * 浏览器拿不到用户本机路径，所以"选择文件夹"只能在后端可见的目录树里点选。
+ */
+export const listDirs = async (path: string): Promise<DirListing> => {
+  return await request.get('/fs/list_dirs', { params: { path } })
+}
+
