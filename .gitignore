@@ -330,3 +330,21 @@ ffmpg*/
 # 启动器打包产物（PyInstaller）
 BiliNoteApp/
 bilinote_launcher.spec
+
+# ===== 运行时数据（切勿提交）=====
+# backend/config/ 含 downloader.json（抖音/B站 cookie）、app_settings.json 等隐私配置
+/backend/config
+# 用户上传的本地视频
+/backend/uploads
+# 下载下来的视频/音频
+/backend/data
+# 截图（可能含隐私画面）
+/backend/static/screenshots
+# SQLite 数据库（含 LLM 配置与笔记历史）
+*.db
+*.db-journal
+# 启动器运行日志
+bilinote_launcher.log
+chrome_launch.log
+# 手工备份
+*.bak-*
