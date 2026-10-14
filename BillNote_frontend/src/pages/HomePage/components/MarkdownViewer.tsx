@@ -405,8 +405,21 @@ const MarkdownViewer: FC<MarkdownViewerProps> = memo(({ status }) => {
   }
   const handleDownload = () => {
     const task = getCurrentTask()
-    const name = task?.audioMeta.title || 'note'
-    const blob = new Blob([selectedContent], { type: 'text/markdown;charset=utf-8' })
+    const md = String(selectedContent || '')
+
+    // 文件名用「笔记标题」：取正文里第一个一级标题，
+    // 取不到才退回视频原始标题（audioMeta.title）。
+    const heading = md.match(/^\s*#\s+(.+?)\s*$/m)?.[1]?.trim()
+    const raw = heading || task?.audioMeta.title || 'note'
+
+    // 清掉 Windows 文件名非法字符，并限制长度，避免下载失败
+    const name = raw
+      .replace(/[\\/:*?"<>|]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 120) || 'note'
+
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
     const link = document.createElement('a')
     link.href = URL.createObjectURL(blob)
     link.download = `${name}.md`
