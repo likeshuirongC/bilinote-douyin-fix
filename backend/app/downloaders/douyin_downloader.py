@@ -2,6 +2,7 @@ import datetime
 import json
 import os
 import re
+import time
 from typing import Union, Optional
 from urllib.parse import quote, urlencode
 
@@ -19,6 +20,31 @@ from dotenv import load_dotenv
 
 load_dotenv()
 DOUYIN_DOMAIN = "https://www.douyin.com"
+
+
+def _download_bytes(url: str, headers: Optional[dict] = None, timeout: int = 60,
+                    retries: int = 3) -> bytes:
+    """下载媒体字节流，带重试。
+
+    抖音 CDN 域名偶尔会瞬时解析失败（容器内 Docker DNS 转发抖动），
+    原来裸 requests.get 一失败整个任务就 FAILED；这里退避重试两次基本能恢复。
+    同时做一次内容校验，避免把错误页写成 .mp3。
+    """
+    last_err = None
+    for attempt in range(1, retries + 1):
+        try:
+            resp = requests.get(url, headers=headers or {}, timeout=timeout)
+            resp.raise_for_status()
+            data = resp.content
+            if not data:
+                raise ValueError(f"下载内容为空: {url}")
+            return data
+        except Exception as e:  # noqa: BLE001 - 需要把最后一次异常抛给上层
+            last_err = e
+            if attempt < retries:
+                time.sleep(1.5 * attempt)
+    assert last_err is not None
+    raise last_err
 
 cfm=CookieConfigManager()
 def get_timestamp(unit: str = "milli"):
@@ -258,10 +284,10 @@ class DouyinDownloader(Downloader):
                 "ext": "mp3",
             }
             url = video_data['aweme_detail']['music']['play_url']['uri']
-            # 下载音频
-            audio_data = requests.get(url)
+            # 下载音频（带重试，CDN 偶发 DNS 抖动时自动重来）
+            audio_bytes = _download_bytes(url)
             with open(output_path, 'wb') as f:
-                f.write(audio_data.content)
+                f.write(audio_bytes)
             print(url)
             tags = []
             for tag in video_data['aweme_detail']['video_tag']:
@@ -309,10 +335,10 @@ class DouyinDownloader(Downloader):
             }
 
             url=video_data['aweme_detail']['video']['download_addr']['url_list'][0]
-            _data = requests.get(url,allow_redirects=True,headers=self.headers_config)
+            _bytes = _download_bytes(url, headers=self.headers_config)
 
             with open(output_path, 'wb') as f:
-                f.write(_data.content)
+                f.write(_bytes)
 
             return output_path
         except Exception as e:
