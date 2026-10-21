@@ -258,7 +258,7 @@ const NoteForm = () => {
   ])
 
   /* ---- 帮助函数 ---- */
-  const isGenerating = () => !['SUCCESS', 'FAILED', undefined].includes(getCurrentTask()?.status)
+  const isGenerating = () => !['SUCCESS', 'FAILED', 'CANCELLED', undefined].includes(getCurrentTask()?.status)
   const generating = isGenerating()
   const handleFileUpload = async (file: File, cb: (url: string) => void) => {
     const formData = new FormData()

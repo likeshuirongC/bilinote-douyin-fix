@@ -28,6 +28,7 @@ from app.models.model_config import ModelConfig
 from app.models.notes_model import AudioDownloadResult, NoteResult
 from app.models.transcriber_model import TranscriptResult, TranscriptSegment
 from app.services.constant import SUPPORT_PLATFORM_MAP
+from app.services.task_cancel import TaskCancelled, ensure_not_cancelled
 from app.services.provider import ProviderService
 from app.transcriber.base import Transcriber
 from app.transcriber.transcriber_provider import get_transcriber, _transcribers
@@ -171,6 +172,7 @@ class NoteGenerator:
 
             # 2. 下载音频/视频
             # 有字幕时只提取元信息，不下载音视频文件（除非需要截图/视频理解）
+            ensure_not_cancelled(task_id)
             has_transcript = transcript is not None
             need_full_download = not has_transcript or screenshot or video_understanding
             audio_meta = self._download_media(
@@ -189,6 +191,7 @@ class NoteGenerator:
             )
 
             # 3. 如果前面没拿到字幕，走转写流程
+            ensure_not_cancelled(task_id)
             if transcript is None:
                 transcript = self._get_transcript(
                     downloader=downloader,
@@ -200,6 +203,9 @@ class NoteGenerator:
                 )
 
             # 3. GPT 总结
+            # 这一步最花钱：调用 LLM 前必须检查取消，
+            # 否则用户删了任务，后台还会继续把 token 烧完
+            ensure_not_cancelled(task_id)
             markdown = self._summarize_text(
                 audio_meta=audio_meta,
                 transcript=transcript,
@@ -226,6 +232,7 @@ class NoteGenerator:
             markdown = prepend_source_link(markdown, str(video_url))
 
             # 5. 保存记录到数据库
+            ensure_not_cancelled(task_id)
             self._update_status(task_id, TaskStatus.SAVING)
             self._save_metadata(video_id=audio_meta.video_id, platform=platform, task_id=task_id)
 
@@ -238,6 +245,10 @@ class NoteGenerator:
 
             return NoteResult(markdown=markdown, transcript=transcript, audio_meta=audio_meta)
 
+        except TaskCancelled:
+            logger.info(f"任务已被用户取消 (task_id={task_id})，已停止后续步骤")
+            self._update_status(task_id, TaskStatus.CANCELLED, message="任务已取消")
+            return None
         except Exception as exc:
             logger.error(f"生成笔记流程异常 (task_id={task_id})：{exc}", exc_info=True)
             self._update_status(task_id, TaskStatus.FAILED, message=str(exc))
@@ -664,6 +675,7 @@ class NoteGenerator:
         :return: 生成的 Markdown 字符串
         """
         task_id = markdown_cache_file.stem
+        ensure_not_cancelled(task_id)
         self._update_status(task_id, TaskStatus.SUMMARIZING)
 
         source = GPTSource(

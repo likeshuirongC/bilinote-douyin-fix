@@ -15,6 +15,10 @@ from app.enmus.exception import NoteErrorEnum
 from app.enmus.note_enums import DownloadQuality
 from app.exceptions.note import NoteError
 from app.services.note import NoteGenerator, logger
+from app.services.task_cancel import cancel as cancel_task_event
+from app.services.task_cancel import is_cancelled as is_cancel_requested
+from app.services.task_cancel import register as register_cancel
+from app.services.task_cancel import unregister as unregister_cancel
 from app.services.task_serial_executor import task_serial_executor
 from app.utils.response import ResponseWrapper as R
 from app.utils.url_extract import extract_first_url
@@ -34,6 +38,8 @@ router = APIRouter()
 class RecordRequest(BaseModel):
     video_id: str
     platform: str
+    # 可选：删除任务时一并取消正在执行的后台任务
+    task_id: Optional[str] = None
 
 
 class VideoRequest(BaseModel):
@@ -153,10 +159,21 @@ def run_note_task(task_id: str, video_url: str, platform: str, quality: Download
         )
 
     logger.info(f"任务进入执行队列 (task_id={task_id})")
-    note = task_serial_executor.run(_execute_note_task)
+    # 登记取消事件：用户中途删任务时，generate() 里的检查点会主动退出，不再继续调 LLM
+    register_cancel(task_id)
+    was_cancelled = False
+    try:
+        note = task_serial_executor.run(_execute_note_task)
+        # 必须在注销前读：注销之后取消事件就查不到了
+        was_cancelled = is_cancel_requested(task_id)
+    finally:
+        unregister_cancel(task_id)
     logger.info(f"Note generated: {task_id}")
     if not note or not note.markdown:
-        logger.warning(f"任务 {task_id} 执行失败，跳过保存")
+        if was_cancelled:
+            logger.info(f"任务已取消，跳过保存: {task_id}")
+        else:
+            logger.warning(f"任务 {task_id} 执行失败，跳过保存")
         return
     save_note_to_file(task_id, note)
 
@@ -171,9 +188,34 @@ def run_note_task(task_id: str, video_url: str, platform: str, quality: Download
 @router.post('/delete_task')
 def delete_task(data: RecordRequest):
     try:
+        # 先请求取消：如果这个任务还在后台跑（下载/转写/调 LLM），
+        # 不取消的话删了它也会继续跑完，白白消耗 token
+        cancelled = False
+        if data.task_id:
+            cancelled = cancel_task_event(data.task_id)
+            if cancelled:
+                logger.info(f"删除任务时已请求取消: {data.task_id}")
         # TODO: 待持久化完成
         # NoteGenerator().delete_note(video_id=data.video_id, platform=data.platform)
-        return R.success(msg='删除成功')
+        return R.success(data={"cancelled": cancelled}, msg='删除成功')
+    except Exception as e:
+        return R.error(msg=e)
+
+
+class CancelTaskRequest(BaseModel):
+    task_id: str
+
+
+@router.post('/cancel_task')
+def cancel_task(data: CancelTaskRequest):
+    """取消一个正在执行的任务（协作式：在下一个检查点退出）。
+
+    返回 cancelled=False 说明该任务已经结束或不存在，无需取消。
+    """
+    try:
+        cancelled = cancel_task_event(data.task_id)
+        logger.info(f"取消请求 task_id={data.task_id} -> {cancelled}")
+        return R.success(data={"cancelled": cancelled})
     except Exception as e:
         return R.error(msg=e)
 

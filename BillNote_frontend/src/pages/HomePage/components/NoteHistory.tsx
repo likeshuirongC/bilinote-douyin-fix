@@ -133,7 +133,7 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
                     已完成
                   </div>
                 )}
-                {task.status !== 'SUCCESS' && task.status !== 'FAILED' ? (
+                {task.status !== 'SUCCESS' && task.status !== 'FAILED' && task.status !== 'CANCELLED' ? (
                   <div className={'w-10 rounded bg-green-500 p-0.5 text-center text-white'}>
                     等待中
                   </div>
@@ -142,6 +142,11 @@ const NoteHistory: FC<NoteHistoryProps> = ({ onSelect, selectedId }) => {
                 )}
                 {task.status === 'FAILED' && (
                   <div className={'w-10 rounded bg-red-500 p-0.5 text-center text-white'}>失败</div>
+                )}
+                {task.status === 'CANCELLED' && (
+                  <div className={'w-10 rounded bg-gray-400 p-0.5 text-center text-white'}>
+                    已取消
+                  </div>
                 )}
               </div>
 

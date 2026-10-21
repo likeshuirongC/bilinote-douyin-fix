@@ -19,7 +19,8 @@ export const useTaskPolling = (interval = 3000) => {
   useEffect(() => {
     const timer = setInterval(async () => {
       const pendingTasks = tasksRef.current.filter(
-        task => task.status != 'SUCCESS' && task.status != 'FAILED'
+        // CANCELLED 也是终态：用户中途取消后必须停止轮询，否则会一直当成"进行中"
+        task => !['SUCCESS', 'FAILED', 'CANCELLED'].includes(task.status)
       )
 
       // 无活跃任务时跳过轮询

@@ -11,6 +11,8 @@ class TaskStatus(str, enum.Enum):
     SAVING = "SAVING"
     SUCCESS = "SUCCESS"
     FAILED = "FAILED"
+    # 用户主动取消（区别于失败：不算错误，不重试）
+    CANCELLED = "CANCELLED"
 
     @classmethod
     def description(cls, status):
@@ -24,5 +26,6 @@ class TaskStatus(str, enum.Enum):
             cls.SAVING: "保存中",
             cls.SUCCESS: "完成",
             cls.FAILED: "失败",
+            cls.CANCELLED: "已取消",
         }
         return desc_map.get(status, "未知状态")

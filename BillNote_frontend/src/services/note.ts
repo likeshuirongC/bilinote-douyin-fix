@@ -41,11 +41,13 @@ export const generateNote = async (data: {
   }
 }
 
-export const delete_task = async ({ video_id, platform }) => {
+export const delete_task = async ({ video_id, platform, task_id }) => {
   try {
     const data = {
       video_id,
       platform,
+      // 带上 task_id：任务还在跑时后端会顺手取消它，避免"删了还在烧 token"
+      task_id,
     }
     const res = await request.post('/delete_task', data)
 

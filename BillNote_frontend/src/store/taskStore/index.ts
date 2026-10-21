@@ -213,10 +213,12 @@ export const useTaskStore = create<TaskStore>()(
         }))
 
         // 调用后端删除接口（如果找到了任务）
+        // 带上 task_id：正在跑的任务会被后端取消，不会继续调 LLM
         if (task) {
           await delete_task({
             video_id: task.audioMeta.video_id,
             platform: task.platform,
+            task_id: id,
           })
         }
       },
